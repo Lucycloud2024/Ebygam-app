@@ -14,7 +14,8 @@ interface StageReport {
 function runPrecommitSuite(): void {
   const reports: StageReport[] = [];
 
-  // Stage 1: Blueprint & Architectural Contract
+  // Stage 1: Blueprint, Documentation & Architectural Contract
+  assert.ok(fs.existsSync(path.resolve('README.md')), 'README.md documentation file required');
   const blueprintRaw = fs.readFileSync(path.resolve('firebase-blueprint.json'), 'utf8');
   const blueprint = JSON.parse(blueprintRaw);
   assert.ok(blueprint.entities.UserProfile, 'UserProfile entity required');
@@ -23,9 +24,9 @@ function runPrecommitSuite(): void {
   assert.ok(blueprint.entities.OrderItem, 'OrderItem entity required');
   assert.ok(blueprint.entities.TelemetryConfig, 'TelemetryConfig entity required');
   reports.push({
-    stage: 'Stage 1: Two-Tier Architecture & Blueprint Schema',
+    stage: 'Stage 1: Two-Tier Architecture, README & Blueprint Schema',
     passed: true,
-    details: ['5 Firestore entities & 5 collection paths verified', 'Split-collection PII isolation verified'],
+    details: ['README.md + 5 Firestore entities & 5 collection paths verified', 'Split-collection PII isolation verified'],
   });
 
   // Stage 2: ESLint ANTLR4 Grammar & Dirty Dozen Security Tests
