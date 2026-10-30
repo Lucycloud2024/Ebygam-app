@@ -1,0 +1,331 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidShortId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function userExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) ||
+        existsAfter(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function orderExistsAndOwned(userId, orderId) {
+      return (
+        exists(/databases/$(database)/documents/users/$(userId)/orders/$(orderId)) &&
+        get(/databases/$(database)/documents/users/$(userId)/orders/$(orderId)).data.userId == request.auth.uid
+      ) || (
+        existsAfter(/databases/$(database)/documents/users/$(userId)/orders/$(orderId)) &&
+        getAfter(/databases/$(database)/documents/users/$(userId)/orders/$(orderId)).data.userId == request.auth.uid
+      );
+    }
+
+    // Blueprint Validation Helpers (Anti-Update-Gap)
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'accountTier', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'accountTier', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.uid == request.auth.uid &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+        data.accountTier is string && data.accountTier.size() >= 1 && data.accountTier.size() <= 20 &&
+        (data.accountTier == 'residential' || data.accountTier == 'commercial') &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'phone', 'shippingAddress', 'city', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'shippingAddress', 'city', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.uid == request.auth.uid &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+        data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 30 &&
+        data.shippingAddress is string && data.shippingAddress.size() >= 3 && data.shippingAddress.size() <= 200 &&
+        data.city is string && data.city.size() >= 2 && data.city.size() <= 80 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'orderId', 'userId', 'itemCount', 'summaryText', 'subtotalUsd',
+          'paymentMethod', 'paymentRef', 'verificationDigest', 'shippingCity',
+          'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderId', 'userId', 'itemCount', 'summaryText', 'subtotalUsd',
+          'paymentMethod', 'paymentRef', 'verificationDigest', 'shippingCity',
+          'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.orderId is string && data.orderId.size() >= 1 && data.orderId.size() <= 64 && data.orderId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 && data.userId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId == request.auth.uid &&
+        data.itemCount is int && data.itemCount >= 1 && data.itemCount <= 50 &&
+        data.summaryText is string && data.summaryText.size() >= 1 && data.summaryText.size() <= 240 &&
+        data.subtotalUsd is number && data.subtotalUsd > 0 && data.subtotalUsd <= 1000000 &&
+        data.paymentMethod is string && data.paymentMethod.size() >= 4 && data.paymentMethod.size() <= 20 &&
+        (data.paymentMethod == 'card' || data.paymentMethod == 'bank_transfer') &&
+        data.paymentRef is string && data.paymentRef.size() >= 6 && data.paymentRef.size() <= 120 && data.paymentRef.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.verificationDigest is string && data.verificationDigest.size() >= 16 && data.verificationDigest.size() <= 128 && data.verificationDigest.matches('^[a-fA-F0-9]+$') &&
+        data.shippingCity is string && data.shippingCity.size() >= 2 && data.shippingCity.size() <= 80 &&
+        data.status is string && data.status.size() >= 4 && data.status.size() <= 20 &&
+        (data.status == 'paid' || data.status == 'dispatched' || data.status == 'delivered' || data.status == 'cancelled') &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidOrderItem(data) {
+      return data.keys().hasAll([
+          'itemId', 'orderId', 'userId', 'productId', 'productName',
+          'selectedSpec', 'unitPriceUsd', 'quantity', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'itemId', 'orderId', 'userId', 'productId', 'productName',
+          'selectedSpec', 'unitPriceUsd', 'quantity', 'createdAt'
+        ]) &&
+        data.itemId is string && data.itemId.size() >= 1 && data.itemId.size() <= 64 && data.itemId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.orderId is string && data.orderId.size() >= 1 && data.orderId.size() <= 64 && data.orderId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 && data.userId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId == request.auth.uid &&
+        data.productId is string && data.productId.size() >= 1 && data.productId.size() <= 64 && data.productId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.productName is string && data.productName.size() >= 1 && data.productName.size() <= 120 &&
+        data.selectedSpec is string && data.selectedSpec.size() >= 1 && data.selectedSpec.size() <= 80 &&
+        data.unitPriceUsd is number && data.unitPriceUsd > 0 && data.unitPriceUsd <= 100000 &&
+        data.quantity is int && data.quantity >= 1 && data.quantity <= 50 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidTelemetryConfig(data) {
+      return data.keys().hasAll([
+          'configId', 'userId', 'panelRange', 'batteryCapacity',
+          'inverterOutput', 'fanSize', 'fanSpeed', 'gridTiePercent', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'configId', 'userId', 'panelRange', 'batteryCapacity',
+          'inverterOutput', 'fanSize', 'fanSpeed', 'gridTiePercent', 'updatedAt'
+        ]) &&
+        data.configId is string && data.configId.size() >= 1 && data.configId.size() <= 64 && data.configId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 && data.userId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId == request.auth.uid &&
+        data.panelRange is string && data.panelRange.size() >= 9 && data.panelRange.size() <= 12 &&
+        (data.panelRange == '500W-550W' || data.panelRange == '550W-600W' || data.panelRange == '600W-650W') &&
+        data.batteryCapacity is string && data.batteryCapacity.size() >= 4 && data.batteryCapacity.size() <= 6 &&
+        (data.batteryCapacity == '5kWh' || data.batteryCapacity == '10kWh' || data.batteryCapacity == '15kWh') &&
+        data.inverterOutput is string && data.inverterOutput.size() >= 3 && data.inverterOutput.size() <= 6 &&
+        (data.inverterOutput == '1.2kW' || data.inverterOutput == '3.5kW' || data.inverterOutput == '5kW') &&
+        data.fanSize is string && data.fanSize.size() >= 9 && data.fanSize.size() <= 12 &&
+        (data.fanSize == '16in-18in' || data.fanSize == '20in-22in') &&
+        data.fanSpeed is int && data.fanSpeed >= 1 && data.fanSpeed <= 5 &&
+        data.gridTiePercent is int && data.gridTiePercent >= 0 && data.gridTiePercent <= 100 &&
+        data.updatedAt is timestamp;
+    }
+
+    // 1. User Public Profile
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isVerified() &&
+        isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerified() &&
+        isValidUserProfile(incoming()) &&
+        isOwner(userId) &&
+        isValidId(userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'accountTier', 'updatedAt'])
+        );
+
+      allow delete: if false;
+
+      // 2. Isolated Customer PII Subcollection
+      match /private/{docId} {
+        allow get: if isVerified() &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          docId == 'contact' &&
+          (resource == null || existing().uid == request.auth.uid) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow list: if false;
+
+        allow create: if isVerified() &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          docId == 'contact' &&
+          isValidUserPrivateInfo(incoming()) &&
+          incoming().uid == userId &&
+          incoming().updatedAt == request.time &&
+          userExists(userId);
+
+        allow update: if isVerified() &&
+          isValidUserPrivateInfo(incoming()) &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          docId == 'contact' &&
+          incoming().uid == existing().uid &&
+          incoming().updatedAt == request.time &&
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'shippingAddress', 'city', 'updatedAt'])
+          ) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow delete: if false;
+      }
+
+      // 3. Verified Customer Orders Subcollection
+      match /orders/{orderId} {
+        allow get: if isVerified() &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          isValidShortId(orderId) &&
+          (resource == null || existing().userId == request.auth.uid) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow list: if isVerified() &&
+          isOwner(userId) &&
+          existing().userId == request.auth.uid;
+
+        allow create: if isVerified() &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          isValidShortId(orderId) &&
+          isValidOrder(incoming()) &&
+          incoming().orderId == orderId &&
+          incoming().userId == userId &&
+          incoming().status == 'paid' &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          userExists(userId);
+
+        allow update: if isVerified() &&
+          isValidOrder(incoming()) &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          isValidShortId(orderId) &&
+          incoming().orderId == existing().orderId &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          // Terminal State Lock: delivered or cancelled orders cannot be modified
+          existing().status == 'paid' &&
+          (
+            // Action: Cancel Order prior to dispatch
+            (incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+          ) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow delete: if false;
+
+        // 4. Order Line Items Subcollection
+        match /items/{itemId} {
+          allow get: if isVerified() &&
+            isOwner(userId) &&
+            isValidId(userId) &&
+            isValidShortId(orderId) &&
+            isValidShortId(itemId) &&
+            (resource == null || existing().userId == request.auth.uid) &&
+            orderExistsAndOwned(userId, orderId);
+
+          allow list: if isVerified() &&
+            isOwner(userId) &&
+            existing().userId == request.auth.uid;
+
+          allow create: if isVerified() &&
+            isOwner(userId) &&
+            isValidId(userId) &&
+            isValidShortId(orderId) &&
+            isValidShortId(itemId) &&
+            isValidOrderItem(incoming()) &&
+            incoming().itemId == itemId &&
+            incoming().orderId == orderId &&
+            incoming().userId == userId &&
+            incoming().createdAt == request.time &&
+            orderExistsAndOwned(userId, orderId);
+
+          allow update, delete: if false;
+        }
+      }
+
+      // 5. Saved Telemetry Configurations Subcollection
+      match /telemetryConfigs/{configId} {
+        allow get: if isVerified() &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          isValidShortId(configId) &&
+          (resource == null || existing().userId == request.auth.uid) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow list: if isVerified() &&
+          isOwner(userId) &&
+          existing().userId == request.auth.uid;
+
+        allow create: if isVerified() &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          isValidShortId(configId) &&
+          isValidTelemetryConfig(incoming()) &&
+          incoming().configId == configId &&
+          incoming().userId == userId &&
+          incoming().updatedAt == request.time &&
+          userExists(userId);
+
+        allow update: if isVerified() &&
+          isValidTelemetryConfig(incoming()) &&
+          isOwner(userId) &&
+          isValidId(userId) &&
+          isValidShortId(configId) &&
+          incoming().configId == existing().configId &&
+          incoming().userId == existing().userId &&
+          incoming().updatedAt == request.time &&
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'panelRange', 'batteryCapacity', 'inverterOutput',
+              'fanSize', 'fanSpeed', 'gridTiePercent', 'updatedAt'
+            ])
+          ) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow delete: if false;
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Ebygam Solar",
+  "description": "Two-tier solar e-commerce storefront and live energy telemetry platform for solar generators, LiFePO4 batteries, N-Type panels, rechargeable fans, and hybrid inverters.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

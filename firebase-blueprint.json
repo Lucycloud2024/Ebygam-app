@@ -1,0 +1,346 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Publicly non-sensitive customer profile metadata for an Ebygam Solar account owner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Customer full name or organization name.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "accountTier": {
+          "type": "string",
+          "description": "Solar installation classification.",
+          "enum": ["residential", "commercial"],
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of most recent profile update."
+        }
+      },
+      "required": ["uid", "displayName", "accountTier", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII contact and delivery details for the customer.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner UID matching parent user document.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified customer email address.",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "description": "Customer delivery phone number.",
+          "minLength": 5,
+          "maxLength": 30
+        },
+        "shippingAddress": {
+          "type": "string",
+          "description": "Street delivery address for solar equipment.",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "city": {
+          "type": "string",
+          "description": "City and state or region.",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last PII update."
+        }
+      },
+      "required": ["uid", "email", "phone", "shippingAddress", "city", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Verified e-commerce solar equipment order header.",
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "description": "Unique order identifier.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Customer UID who placed the order.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "itemCount": {
+          "type": "integer",
+          "description": "Total number of solar units in the order."
+        },
+        "summaryText": {
+          "type": "string",
+          "description": "Concise human-readable summary of ordered solar products.",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "subtotalUsd": {
+          "type": "number",
+          "description": "Total verified transaction amount in USD."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment gateway channel used.",
+          "enum": ["card", "bank_transfer"],
+          "minLength": 4,
+          "maxLength": 20
+        },
+        "paymentRef": {
+          "type": "string",
+          "description": "Payment gateway transaction reference.",
+          "minLength": 6,
+          "maxLength": 120,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "verificationDigest": {
+          "type": "string",
+          "description": "Server-side HMAC-SHA256 hex digest proving gateway verification.",
+          "minLength": 16,
+          "maxLength": 128,
+          "pattern": "^[a-fA-F0-9]+$"
+        },
+        "shippingCity": {
+          "type": "string",
+          "description": "Destination city for logistics.",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "status": {
+          "type": "string",
+          "description": "Order lifecycle state.",
+          "enum": ["paid", "dispatched", "delivered", "cancelled"],
+          "minLength": 4,
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable server timestamp of order placement."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest state transition."
+        }
+      },
+      "required": [
+        "orderId",
+        "userId",
+        "itemCount",
+        "summaryText",
+        "subtotalUsd",
+        "paymentMethod",
+        "paymentRef",
+        "verificationDigest",
+        "shippingCity",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OrderItem": {
+      "title": "OrderItem",
+      "description": "Individual solar product line item stored in an order subcollection.",
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string",
+          "description": "Line item identifier.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Parent order identifier.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner customer UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Catalog SKU identifier.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "productName": {
+          "type": "string",
+          "description": "Display name of the solar hardware.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "selectedSpec": {
+          "type": "string",
+          "description": "Configured power, capacity, or blade size specification.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "unitPriceUsd": {
+          "type": "number",
+          "description": "Unit price in USD at purchase time."
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "Quantity purchased."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable server creation timestamp."
+        }
+      },
+      "required": [
+        "itemId",
+        "orderId",
+        "userId",
+        "productId",
+        "productName",
+        "selectedSpec",
+        "unitPriceUsd",
+        "quantity",
+        "createdAt"
+      ]
+    },
+    "TelemetryConfig": {
+      "title": "TelemetryConfig",
+      "description": "Saved user solar installation configuration for live telemetry monitoring.",
+      "type": "object",
+      "properties": {
+        "configId": {
+          "type": "string",
+          "description": "Configuration document identifier.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner customer UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "panelRange": {
+          "type": "string",
+          "description": "Selected solar panel wattage range.",
+          "enum": ["500W-550W", "550W-600W", "600W-650W"],
+          "minLength": 9,
+          "maxLength": 12
+        },
+        "batteryCapacity": {
+          "type": "string",
+          "description": "Selected LiFePO4 battery bank capacity.",
+          "enum": ["5kWh", "10kWh", "15kWh"],
+          "minLength": 4,
+          "maxLength": 6
+        },
+        "inverterOutput": {
+          "type": "string",
+          "description": "Selected hybrid inverter output power.",
+          "enum": ["1.2kW", "3.5kW", "5kW"],
+          "minLength": 3,
+          "maxLength": 6
+        },
+        "fanSize": {
+          "type": "string",
+          "description": "Selected rechargeable solar fan blade size.",
+          "enum": ["16in-18in", "20in-22in"],
+          "minLength": 9,
+          "maxLength": 12
+        },
+        "fanSpeed": {
+          "type": "integer",
+          "description": "Configured fan speed level from 1 to 5."
+        },
+        "gridTiePercent": {
+          "type": "integer",
+          "description": "Configured grid-tie ratio percentage (0 to 100)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of configuration save."
+        }
+      },
+      "required": [
+        "configId",
+        "userId",
+        "panelRange",
+        "batteryCapacity",
+        "inverterOutput",
+        "fanSize",
+        "fanSpeed",
+        "gridTiePercent",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Customer public account profile scoped to owner UID."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Split-collection isolated PII contact and shipping address details."
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Verified customer solar hardware orders."
+    },
+    "/users/{userId}/orders/{orderId}/items/{itemId}": {
+      "schema": { "$ref": "#/entities/OrderItem" },
+      "description": "Individual solar hardware line items belonging to an order."
+    },
+    "/users/{userId}/telemetryConfigs/{configId}": {
+      "schema": { "$ref": "#/entities/TelemetryConfig" },
+      "description": "Saved user solar telemetry dashboard presets."
+    }
+  }
+}
